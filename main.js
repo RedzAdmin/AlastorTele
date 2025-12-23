@@ -732,7 +732,7 @@ const XeonBotInc = simple2({
        printQRInTerminal: false,
         auth: state,
          version,
-           browser: Browsers.ubuntu("Edge"),
+           browser: ['Windows', 'Chrome', '122.0.0.0'],
             getMessage: async key => {
             const jid = jidNormalizedUser(key.remoteJid);
             const msg = await store.loadMessage(jid, key.id);
