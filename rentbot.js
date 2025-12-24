@@ -55,7 +55,7 @@ const XeonBotInc = makeWASocket({
        printQRInTerminal: false,
         auth: state,
          version,
-           browser: Browsers.ubuntu("Edge"),
+           browser: ["Chrome", "Linux", "20.0.04"], // FIXED: Changed browser
             getMessage: async key => {
             const jid = jidNormalizedUser(key.remoteJid);
             const msg = await store.loadMessage(jid, key.id);
@@ -89,11 +89,39 @@ fs.writeFile(
   'utf8',
   (err) => {
       if (err) {
+          console.error('Error saving pairing code:', err);
       } else {
+          console.log('Pairing code saved successfully');
       }
   }
 );
 
+// ADDED: Wait for connection
+console.log(`✅ Pairing Code: ${code}`);
+console.log('⏳ Waiting for WhatsApp verification (20 seconds)...');
+
+const connectionPromise = new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+        reject(new Error('Verification timeout.'));
+    }, 20000);
+
+    XeonBotInc.ev.on('connection.update', (update) => {
+        const { connection } = update;
+        console.log('RentBot connection update:', connection);
+        
+        if (connection === 'open') {
+            clearTimeout(timeout);
+            console.log('✅ RentBot connected successfully!');
+            resolve();
+        }
+    });
+});
+
+try {
+    await connectionPromise;
+} catch (error) {
+    console.error('❌ RentBot connection failed:', error.message);
+}
 
 }, 1703);
 
@@ -281,7 +309,7 @@ lastDisconnect
 } = update;
 if (connection === "close") {
 let reason = new Boom(lastDisconnect?.error)?.output.statusCode;
-console.log(reason)
+console.log("RentBot disconnect reason:", reason)
 if (reason === DisconnectReason.badSession) {
 console.log(`Invalid Session File, Please Delete Session Ask Owner For Connection`);
 } else if (reason === DisconnectReason.connectionClosed) {

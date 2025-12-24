@@ -95,119 +95,6 @@ const resellerIDs = JSON.parse(fs.readFileSync(reseller_file, 'utf8'));
 
 const bot = new Telegraf(BOT_TOKEN)
 
-/*const puppeteer = require('puppeteer');
-
-// Function to automate the reporting process
-async function reportChannel(channelUrl, messageUrl, ctx) {
-    const browser = await puppeteer.launch({ headless: "new" }); // Updated headless option
-    const page = await browser.newPage();
-
-    try {
-        await ctx.reply("⚠️ Reporting in progress... Please wait.");
-
-        console.log("Opening DSA Report Page...");
-        await page.goto("https://telegram.org/dsa-report", { waitUntil: "networkidle2" });
-
-        // Click "Report Illegal Content"
-        await page.waitForSelector('a[href="/dsa-report/new"]');
-        await page.click('a[href="/dsa-report/new"]');
-
-        // Click "Continue without logging in"
-        await page.waitForSelector('a[href="/dsa-report/without-login"]');
-        await page.click('a[href="/dsa-report/without-login"]');
-
-        // Enter Channel Link
-        await page.waitForSelector('input[name="link"]');
-        await page.type('input[name="link"]', channelUrl, { delay: 100 });
-
-        // Click "Next"
-        await page.click('button[type="submit"]');
-
-        // Enter Message Link
-        await page.waitForSelector('input[name="message_link"]');
-        await page.type('input[name="message_link"]', messageUrl, { delay: 100 });
-
-        // Click "Next"
-        await page.click('button[type="submit"]');
-
-        // Select "Scam or Scam"
-        await page.waitForSelector('select[name="category"]');
-        await page.select('select[name="category"]', "scam");
-
-        // Select "Fraudulent Sales"
-        await page.waitForSelector('select[name="subcategory"]');
-        await page.select('select[name="subcategory"]', "fraudulent_sales");
-
-        // Enter "Selling Hacks"
-        await page.type('textarea[name="details"]', "Selling hacks", { delay: 100 });
-
-        // Click "Next"
-        await page.click('button[type="submit"]');
-
-        // Select "I don’t have links to relevant laws"
-        await page.waitForSelector('input[name="no_links"]');
-        await page.click('input[name="no_links"]');
-
-        // Click "Skip"
-        await page.click('button[type="submit"]');
-
-        // Select "Germany"
-        await page.waitForSelector('select[name="country"]');
-        await page.select('select[name="country"]', "DE");
-
-        // Proceed without documentation
-        await page.click('button[type="submit"]');
-
-        // Select "On my behalf"
-        await page.waitForSelector('input[name="on_behalf"]');
-        await page.click('input[name="on_behalf"]');
-
-        // Fill in User Details
-        await page.type('input[name="full_name"]', process.env.FULL_NAME, { delay: 100 });
-        await page.type('input[name="address"]', process.env.ADDRESS, { delay: 100 });
-        await page.type('input[name="email"]', process.env.EMAIL, { delay: 100 });
-        await page.type('input[name="phone"]', process.env.PHONE, { delay: 100 });
-
-        // Click "Next"
-        await page.click('button[type="submit"]');
-
-        // Select "I don’t have a court order"
-        await page.waitForSelector('input[name="no_court_order"]');
-        await page.click('input[name="no_court_order"]');
-
-        // Confirm
-        await page.click('button[type="submit"]');
-
-        // Enter Signature (Full Name)
-        await page.type('input[name="signature"]', process.env.FULL_NAME, { delay: 100 });
-
-        // Submit the report (Uncomment for real use)
-        // await page.click('button[type="submit"]');
-
-        console.log("Report submitted successfully!");
-        await ctx.reply("✅ Report submitted successfully!");
-
-    } catch (error) {
-        console.error("Error reporting channel:", error);
-        await ctx.reply("❌ Error while reporting. Please try again.");
-    } finally {
-        await browser.close();
-    }
-}
-
-// Telegram bot command to trigger the report
-bot.command("report", async (ctx) => {
-    const messageText = ctx.message.text.split(" ");
-    if (messageText.length < 3) {
-        return ctx.reply("Usage: /report <channel_link> <message_link>");
-    }
-
-    const channelUrl = messageText[1];
-    const messageUrl = messageText[2];
-
-    await reportChannel(channelUrl, messageUrl, ctx);
-});*/
-
 async function checkMembership(userId) {
     try {
         const isInGroup = await bot.telegram.getChatMember(GROUP_ID, userId);
@@ -750,7 +637,42 @@ const phoneNumber = await question('Enter your phone number with country code wi
 let code = await XeonBotInc.requestPairingCode(phoneNumber);
 code = code?.match(/.{1,4}/g)?.join("-") || code;
 console.log(`Code :`, code);
+
+// FIX: Wait for connection to complete
+console.log('📱 Please open WhatsApp → Settings → Linked Devices → Link a Device');
+console.log(`🔢 Enter this code: ${code}`);
+console.log('⏳ Waiting for verification (30 seconds)...');
+
+// Wait for connection with timeout
+const connectionPromise = new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+        reject(new Error('Connection timeout. Please try again.'));
+    }, 30000); // 30 second timeout
+
+    XeonBotInc.ev.on('connection.update', (update) => {
+        const { connection, isNewLogin } = update;
+        console.log('Connection update:', connection);
+        
+        if (connection === 'open') {
+            clearTimeout(timeout);
+            console.log('✅ WhatsApp connected successfully!');
+            resolve();
+        } else if (connection === 'close') {
+            clearTimeout(timeout);
+            reject(new Error('Connection closed.'));
+        }
+    });
+});
+
+try {
+    await connectionPromise;
+} catch (error) {
+    console.error('❌ Connection failed:', error.message);
+    console.log('Please try again or use QR code method.');
+    process.exit(1);
 }
+}
+
 store.bind(XeonBotInc.ev);
 
 XeonBotInc.ev.on('messages.upsert', async chatUpdate => {
@@ -805,117 +727,6 @@ let decode = jidDecode(jid) || {}
 return decode.user && decode.server && decode.user + '@' + decode.server || jid
 } else return jid
 }
-
-//--------------------------------------------------------------------------\\
-/*bot.command('reqpair', async (ctx) => {
-    let adminIDs;
-    try {
-        adminIDs = JSON.parse(fs.readFileSync(adminfile, 'utf8'));
-    } catch (err) {
-        console.error('Error reading adminID.json:', err);
-        return ctx.reply('Failed to load admin data.');
-    }
-
-    const userID = ctx.from.id.toString();
-
-    // Function to escape MarkdownV2 special characters
-    const escapeMarkdownV2 = (text) => {
-        return text.replace(/[_*[\]()~`>#\+\-=|{}.!]/g, '\\$&');
-    };
-
-    const escapedUserID = escapeMarkdownV2(userID);
-
-    if (!Array.isArray(adminIDs) || !adminIDs.includes(userID)) {
-        return ctx.replyWithMarkdownV2(
-            `🚫 *You are not authorized to use this command\\.*\n\n` +
-            `📌 To gain access, follow these steps:\n` +
-            `1️⃣ *Join my Telegram channel*\n` +
-            `2️⃣ *Subscribe to my YouTube channel*\n` +
-            `3️⃣ *Follow my WhatsApp channel*\n\n` +
-            `📤 After completing these steps, send screenshots as proof along with your User ID:\n\n` +
-            `\`${escapedUserID}\`\n\n` +  
-            `📩 *Send proof to the owner @DGXeon*`, 
-            {
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: "📢 Telegram Channel", url: "https://t.me/codexemp" }],
-                        [{ text: "▶️ YouTube Channel", url: "https://youtube.com/@unveiledhacking" }],
-                        [{ text: "📱 WhatsApp Channel", url: "https://whatsapp.com/channel/0029VaG9VfPKWEKk1rxTQD20" }]
-                    ]
-                }
-            }
-        );
-    }
-
-    // Check system storage and RAM
-    const freeStorage = os.freemem() / (1024 * 1024);
-    const totalStorage = os.totalmem() / (1024 * 1024);
-    const freeDiskSpace = fs.statSync('/').available / (1024 * 1024);
-
-    if (freeStorage < 300 || freeDiskSpace < 300) {
-        return ctx.reply('Slot is full, please try again later.');
-    }
-
-    if (!DEVELOPER.includes(userID)) {
-        if (cooldowns.has(userID)) {
-            const lastUsed = cooldowns.get(userID);
-            const now = Date.now();
-            const timeLeft = 30000 - (now - lastUsed);
-
-            if (timeLeft > 0) {
-                return ctx.reply(`Please wait ${Math.ceil(timeLeft / 1000)} seconds before using the command again.`);
-            }
-        }
-    }
-
-    const args = ctx.message.text.split(' ').slice(1);
-    if (!args.length) {
-        return ctx.reply('Please provide a number for requesting the pair code. Usage: /reqpair <number>');
-    }
-
-    const target = args[0].split("|")[0];
-    const Xreturn = target.replace(/[^0-9]/g, '') + "@s.whatsapp.net";
-
-    var contactInfo = await XeonBotInc.onWhatsApp(Xreturn);
-  
-  if (contactInfo.length == 0) {
-    return ctx.reply("The number is not registered on WhatsApp");
-  }
-
-    // Validate country code and prefix
-    const countryCode = target.slice(0, 3);
-    const prefixxx = target.slice(0, 1);
-    const firstTwoDigits = target.slice(0, 2);
-
-    const isValidWhatsAppNumber = (number) => {
-        return number.length >= 10 && number.length <= 15 && !isNaN(number);
-    };
-
-    if (countryCode === "252" || prefixxx === "0") {
-        return ctx.reply("Sorry, numbers with country code 252 or prefix 0 are not supported for using the bot.");
-    }
-
-    if (!isValidWhatsAppNumber(target)) {
-        return ctx.reply("Invalid WhatsApp number. Please enter a valid number.");
-    }
-
-    // Proceed with pairing
-    const startpairing = require('./rentbot.js');
-    await startpairing(Xreturn);
-    await new Promise(resolve => setTimeout(resolve, 4000));
-
-    const cu = fs.readFileSync('./lib2/pairing/pairing.json', 'utf-8');
-    const cuObj = JSON.parse(cu);
-
-    ctx.reply(`${cuObj.code}`);
-
-    if (!DEVELOPER.includes(userID)) {
-        cooldowns.set(userID, Date.now());
-        setTimeout(() => cooldowns.delete(userID), 30000);
-    }
-});*/
-
-//--------------------------------------------------------------------------\\
 
 XeonBotInc.getName = (jid, withoutContact= false) => {
 id = XeonBotInc.decodeJid(jid)
